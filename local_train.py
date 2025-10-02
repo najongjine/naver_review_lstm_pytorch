@@ -64,7 +64,7 @@ tokenized_data = tokenizer(
     reviews,
     padding='max_length',
     truncation=True,
-    max_length=128,
+    max_length=256,
     return_tensors='pt'
 )
 labels = torch.tensor(raw['label'].values)
