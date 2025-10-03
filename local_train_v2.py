@@ -47,7 +47,7 @@ if not os.path.exists(DATA_FILE):
     
 reg_txt = re.compile("[^ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z\s]") # 한글, 영문, 공백만 남깁니다.
 raw = pd.read_table(DATA_FILE, names=['rating','review'])
-raw = raw[:6000] # 데이터 6000개만 사용
+#raw = raw[:6000] # 데이터 6000개만 사용
 raw['label'] = np.where(raw['rating']>3, 1, 0) # 4점, 5점은 1(긍정), 나머지는 0(부정)
 print(f"총 {len(raw)}개의 리뷰 데이터 로드 완료.")
 
