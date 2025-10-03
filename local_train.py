@@ -52,7 +52,7 @@ MODEL_NAME = 'monologg/kobert' # <-- 모델 이름을 더 안정적인 monologg 
 tokenizer = BertTokenizer.from_pretrained(MODEL_NAME) # <-- BertTokenizer 사용
 
 # 2. BertModel을 사용하여 로드
-kobert_model = BertModel.from_pretrained(MODEL_NAME).to(device).eval() # <-- AutoModel 대신 BertModel 사용
+kobert_model = BertModel.from_pretrained(MODEL_NAME).to(device)#.eval() # <-- AutoModel 대신 BertModel 사용
 
 EMBEDDING_DIM = kobert_model.config.hidden_size # 768
 
@@ -128,10 +128,10 @@ class GRUClassifier(nn.Module):
     def forward(self, text, attention_mask):
         global kobert_model # 전역 변수 KoBERT 모델 사용
 
-        # 1. KoBERT 임베딩 추출 (no_grad로 KoBERT 가중치 고정)
-        with torch.no_grad():
-            outputs = kobert_model(input_ids=text, attention_mask=attention_mask)
-            embedded = outputs.last_hidden_state
+        # 1. KoBERT 임베딩 추출 
+        #with torch.no_grad():
+        outputs = kobert_model(input_ids=text, attention_mask=attention_mask)
+        embedded = outputs.last_hidden_state
 
         # 2. GRU 레이어 통과
         rnn_output, hidden = self.rnn(embedded)
@@ -206,7 +206,10 @@ N_EPOCHS = 20
 
 model = GRUClassifier(EMBEDDING_DIM, HIDDEN_DIM, OUTPUT_DIM, NUM_LAYERS, DROPOUT).to(device)
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+
+#KoBERT 모델의 파라미터도 옵티마이저에 포함
+all_params = list(model.parameters()) + list(kobert_model.parameters()) 
+optimizer = torch.optim.Adam(all_params, lr=LEARNING_RATE) # <-- KoBERT와 GRU를 함께 훈련!
 
 
 print("\n" + "=" * 60)
