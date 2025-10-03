@@ -30,6 +30,7 @@ print(f"모델 저장 경로: {os.path.abspath(LOCAL_PATH)}")
 # GPU 사용 설정 (KoBERT 모델 로드 및 device 설정은 이전 코드 그대로 유지)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"사용 장치: {device}")
+#device="cpu"
 
 # =================================================================
 # 2. 데이터 로드 및 전처리
@@ -38,13 +39,30 @@ print(f"사용 장치: {device}")
 # 데이터 로드 (네이버 쇼핑 리뷰 데이터 자동 다운로드)
 DATA_FILE = 'shopping.txt'
 print(f"데이터 {DATA_FILE} 다운로드 중...")
+"""
 urllib.request.urlretrieve(
     'https://raw.githubusercontent.com/bab2min/corpus/master/sentiment/naver_shopping.txt',
     DATA_FILE
 )
+"""
+reg_txt = "[^ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z\s]"
 raw = pd.read_table(DATA_FILE, names=['rating','review'])
+raw = raw[:6000] 
 raw['label'] = np.where(raw['rating']>3, 1, 0)
 print(f"총 {len(raw)}개의 리뷰 데이터 로드 완료.")
+
+# 리뷰 데이터의 NaN 값(결측치)을 빈 문자열로 대체합니다.
+raw['review'] = raw['review'].fillna('')
+
+# 정규표현식을 사용하여 리뷰에서 불필요한 문자를 제거합니다.
+raw['review'] = raw['review'].str.replace(reg_txt, '', regex=True)
+
+# 길이가 0인 빈 문자열 리뷰를 제거 (가장 중요한 수정 부분)
+# 빈 문자열('')이 아닌 리뷰만 필터링합니다.
+raw = raw[raw['review'].str.strip() != '']
+# str.strip()을 사용하여 공백만 남은 리뷰도 제거되도록 보장합니다.
+
+print(f"정규표현식 적용 후, 빈 리뷰를 제거하여 총 {len(raw)}개의 리뷰 데이터가 남았습니다.")
 
 # 토크나이저 및 모델 로드
 MODEL_NAME = 'monologg/kobert' # <-- 모델 이름을 더 안정적인 monologg 버전으로 변경
@@ -129,9 +147,9 @@ class GRUClassifier(nn.Module):
         global kobert_model # 전역 변수 KoBERT 모델 사용
 
         # 1. KoBERT 임베딩 추출 
-        #with torch.no_grad():
-        outputs = kobert_model(input_ids=text, attention_mask=attention_mask)
-        embedded = outputs.last_hidden_state
+        with torch.no_grad():
+            outputs = kobert_model(input_ids=text, attention_mask=attention_mask)
+            embedded = outputs.last_hidden_state
 
         # 2. GRU 레이어 통과
         rnn_output, hidden = self.rnn(embedded)
@@ -197,19 +215,42 @@ def evaluate(model, dataloader, criterion, device):
 # 6. 학습 실행
 # =================================================================
 
-HIDDEN_DIM = 256
+HIDDEN_DIM = 512 
 OUTPUT_DIM = 2
 NUM_LAYERS = 2
 DROPOUT = 0.5
-LEARNING_RATE = 1e-3
+LEARNING_RATE_GRU  = 1e-4 # 1e-4 (0.0001), 5e-4 (0.0005) 
 N_EPOCHS = 20
 
 model = GRUClassifier(EMBEDDING_DIM, HIDDEN_DIM, OUTPUT_DIM, NUM_LAYERS, DROPOUT).to(device)
 criterion = nn.CrossEntropyLoss()
 
+# 💡 여기에 수정된 KoBERT Fine-Tuning 코드를 삽입합니다. 💡
+# ------------------------------------------------------------------
+# KoBERT Fine-Tuning을 위한 설정
+# 모든 파라미터를 고정 (기존에 Freeze했던 상태를 다시 시작)
+for param in kobert_model.parameters():
+    param.requires_grad = False
+
+# KoBERT의 마지막 트랜스포머 레이어 파라미터만 학습 허용 (Unfreeze)
+# KoBERT는 보통 12개의 레이어(0~11)를 가지므로 [-i]은 마지막 레이어입니다.
+"""
+for i in range(i): # 마지막 2개 레이어
+    for param in kobert_model.encoder.layer[-(i+1)].parameters(): 
+        param.requires_grad = True
+"""
+
+# 3. KoBERT Fine-Tuning에 적합한 낮은 학습률 설정
+LEARNING_RATE_FT = 2e-5 # 0.00002
+
 #KoBERT 모델의 파라미터도 옵티마이저에 포함
 all_params = list(model.parameters()) + list(kobert_model.parameters()) 
-optimizer = torch.optim.Adam(all_params, lr=LEARNING_RATE) # <-- KoBERT와 GRU를 함께 훈련!
+optimizer = torch.optim.Adam([
+    # GRU 분류기 파라미터: 빠른 학습률 적용
+    {'params': model.parameters(), 'lr': LEARNING_RATE_GRU}, 
+    # KoBERT 파라미터 (requires_grad=True인 것들만 학습됨): 낮은 학습률 적용
+    {'params': kobert_model.parameters(), 'lr': LEARNING_RATE_FT}
+]) 
 
 
 print("\n" + "=" * 60)

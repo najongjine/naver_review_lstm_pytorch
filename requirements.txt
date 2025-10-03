@@ -7,3 +7,5 @@ tiktoken
 blobfile
 protobuf
 kobert-transformers
+python-mecab-ko
+soynlp
