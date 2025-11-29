@@ -149,8 +149,46 @@ class GRUClassifier(nn.Module):
             dropout=dropout,
             batch_first=True
         )
+
+        """ Dense Layer
+        역할: 독해 결과를 보고 합격/불합격을 때리는 "면접관"
+        정체: 딥러닝 이론에서 흔히 말하는 **Fully Connected Layer (Dense Layer)**입니다. PyTorch에서는 이름이 Linear입니다.
+
+        하는 일:
+
+        GRU가 고생해서 만든 **최종 요약본(Hidden State)**을 딱 한 번 봅니다.
+
+        복잡한 생각은 안 하고, 수학적인 계산을 통해 **"이 정도면 긍정일 확률 99%!"**라고 점수(Logit)를 냅니다.
+
+        비유: 팀장이 가져온 최종 요약본만 딱 보고 "승인" 또는 "반려" 도장을 찍는 결정권자입니다.
+
+        입력: hidden_dim * 2 (GRU가 뱉어낸 기억)
+        출력: output_dim (정답 개수: 2개)
+        """
         self.fc = nn.Linear(hidden_dim * 2, output_dim)
         self.dropout = nn.Dropout(dropout)
+
+
+        """
+        요약: 데이터가 지나가는 길
+        입력: [느, 금, 마, ..., 만, 수, 무, 강] (토큰들) ↓
+
+        임베딩(self.embedding): 숫자로 변환 ↓
+
+        GRU 레이어(self.rnn):
+
+        앞뒤 순서를 따지며 문맥 파악 (지지고 볶고 독해 중)
+
+        bidirectional=True니까 앞뒤로 다 읽음
+
+        num_layers만큼 깊게 생각함 ↓
+
+        최종 기억 추출: 다 읽고 난 후의 머릿속 상태(Hidden State)만 뽑아냄 ↓
+
+        Dense 레이어(self.fc):
+
+        추출된 기억을 보고 [부정 점수, 긍정 점수] 2개의 숫자로 변환
+        """
 
     def forward(self, text):
         embedded = self.dropout(self.embedding(text)) 
