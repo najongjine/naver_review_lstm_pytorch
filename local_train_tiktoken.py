@@ -136,10 +136,15 @@ class GRUClassifier(nn.Module):
             padding_idx=pad_idx 
         )
 
+        """ GRU layer
+        정체: 이 부분이 시계열(순서) 데이터를 처리하는 핵심 층입니다.
+        하는 일:"느금마" -> "만수무강" 순서로 들어오는 단어들을 하나씩 처리합니다.**num_layers=2**라면, 1층 GRU가 먼저 읽고 요약한 내용을 2층 GRU에게 넘겨줍니다. 2층은 더 고차원적인 문맥(더 깊은 의미)을 파악합니다.
+        비유: 실무자가 1차로 보고서를 쓰고(1층), 팀장이 그 보고서를 바탕으로 최종 요약본을 만드는(2층) 과정입니다.
+        """
         self.rnn = nn.GRU(
             input_size=embedding_dim,
             hidden_size=hidden_dim,
-            num_layers=num_layers,
+            num_layers=num_layers, # <-- 2로 설정되어 있다면 2층으로 쌓임
             bidirectional=True,
             dropout=dropout,
             batch_first=True
